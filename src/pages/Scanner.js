@@ -1,6 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
 import Quagga from "quagga";
 
+import logo from "../assets/logo.png";
+
 import "../styles/scanner.scss";
 
 function Scanner() {
@@ -27,6 +29,7 @@ function Scanner() {
     const _onDetected = (res) => {
         // stopScanner();
         setBarcode(res.codeResult.code);
+        setIsStart((prevStart) => !prevStart);
     };
 
     const startScanner = () => {
@@ -37,6 +40,8 @@ function Scanner() {
                     target: document.querySelector("#scanner-container"),
                     constraints: {
                         facingMode: "environment", // or user
+                        width: 320,
+                        height: 240 ,
                     },
                 },
                 numOfWorkers: navigator.hardwareConcurrency,
@@ -134,20 +139,25 @@ function Scanner() {
     };
 
     return (
-        <div>
-            <h3>Barcode scanner in React </h3>
-            <button
-                onClick={() => setIsStart((prevStart) => !prevStart)}
-                style={{ marginBottom: 20 }}
-            >
-                {isStart ? "Stop" : "Start"}
-            </button>
+        <div className="container">
+            <div className="logo">
+                <img src={logo} alt="logo" />
+            </div>
+            <h3>Barcode Scanner</h3>
+            <div className="barcode-result">Barcode: {barcode}</div>
+
             {isStart && (
                 <>
                     <div id="scanner-container" />
-                    <span>Barcode: {barcode}</span>
                 </>
             )}
+            <div
+                className="buttons"
+                onClick={() => setIsStart((prevStart) => !prevStart)}
+                style={{ marginBottom: 20 }}
+            >
+                {isStart ? "Stop" : "Start Scanning"}
+            </div>
         </div>
     );
 }
