@@ -1,13 +1,15 @@
 import React, { useState, useContext } from "react";
 
+import firebase from "firebase";
+
+import { db } from "../firebase";
+
 import UserContext from "../context/user";
 
 // Paypal Checkout package
 import { PayPalButtons, usePayPalScriptReducer } from "@paypal/react-paypal-js";
 
 import { useHistory, Link } from "react-router-dom";
-
-import axios from "axios";
 
 import Logo from "../assets/logo.png";
 
@@ -29,12 +31,9 @@ function Copyright() {
 function Purchase() {
     const history = useHistory();
 
-    const { dispatch } = useContext(UserContext);
-
     const initialState = {
         name: "",
         email: "",
-        password: "",
         isSubmitting: false,
         errorMessage: null,
         successMessage: null,
@@ -42,8 +41,11 @@ function Purchase() {
 
     const [userData, setUserData] = useState(initialState);
 
-    const [quantity, setQuantity] = useState(0);
+    const [quantity, setQuantity] = useState(3);
     const [total, setTotal] = useState(0);
+
+    const [capturedDetails, setCapture] = useState();
+    const [{ isPending }] = usePayPalScriptReducer();
 
     const handleSelect = (e) => {
         setQuantity(e.target.value);
@@ -55,88 +57,53 @@ function Purchase() {
             ...userData,
             [event.target.name]: event.target.value,
         });
-
-        localStorage.setItem(event.target.name, event.target.value);
     };
 
-    const handleSignup = async () => {
-        setUserData({
-            ...userData,
-            isSubmitting: true,
-            errorMessage: null,
-            successMessage: null,
-        });
+    const createRecord = (event) => {
+        event.preventDefault();
 
-        const name = localStorage.getItem("name");
-        const email = localStorage.getItem("email");
-        const password = localStorage.getItem("password");
+        const transactionId = 100;
 
-        // Simple Form Validation
-        if (email === "" || password === "") {
-            setUserData({
-                ...userData,
-                errorMessage: "Fields Cannot Be Empty",
+        db.collection("orders")
+            .add({
+                paypalId: transactionId,
+                timeStamp: firebase.firestore.FieldValue.serverTimestamp(),
+            })
+            .then((docRef) => {
+                console.log("Insert Response: ", docRef.id);
+                // loop per quantity bought and creat a batch insert
+                // to account for each ticket
+                const batch = db.batch();
+
+                for (let i = 0; i < quantity; i++) {
+                    const ticketRef = db
+                        .collection("orders")
+                        .doc(docRef.id)
+                        .collection("tickets")
+                        .doc();
+
+                    batch.set(ticketRef, {
+                        ticket_num:
+                            firebase.firestore.FieldValue.serverTimestamp(),
+                        validated: "n",
+                    });
+                }
+
+                batch
+                    .commit()
+                    .then((response) => {
+                        console.log("Batch Response: ", response);
+                    })
+                    .catch((error) => {
+                        console.log("Batch Error: ", error);
+                    });
+            })
+            .catch((error) => {
+                console.log("Create Record Error: ", error);
             });
-        } else {
-            await axios
-                .post("http://localhost:5000/api/auth/signup", {
-                    name: name,
-                    email: email,
-                    password: password,
-                })
-                .then((res) => {
-                    if (res.status === 201) {
-                        return res.data;
-                    } else {
-                        console.log("Response Error: ", res);
-                        throw res;
-                    }
-                })
-                .then((responseData) => {
-                    const { message } = responseData;
-
-                    console.log("Succes Message: ", message);
-
-                    dispatch({
-                        type: "SIGNUP",
-                        payload: message,
-                    });
-
-                    localStorage.removeItem("email");
-                    localStorage.removeItem("password");
-
-                    setUserData({
-                        ...userData,
-                        successMessage: "Approved! Logging You In...",
-                    });
-
-                    history.push("/search");
-                })
-                .catch((error) => {
-                    console.log("Axios Post Error: ", error);
-                    setUserData({
-                        ...userData,
-                        isSumbitting: false,
-                        errorMessage: error.message || error.statusText,
-                    });
-                });
-        }
-        // history.push("/search");
     };
-
-    console.log("User Signup: ", userData);
-
-    console.log("Storage Name: ", localStorage.getItem("name"));
-    console.log("Storage Email: ", localStorage.getItem("email"));
-    console.log("Storage Password: ", localStorage.getItem("password"));
-
-    const [{ isPending }] = usePayPalScriptReducer();
 
     console.log("isPending", isPending);
-
-    const [capturedDetails, setCapture] = useState();
-
-    const [isPurchasing, setPurchasing] = useState(false);
 
     console.log("Quantity Selected: ", quantity);
 
@@ -168,11 +135,7 @@ function Purchase() {
             )}
             <div className="form__group field">
                 <div className="quantity__selector">
-                    <select
-                        id="quantity"
-                        onChange={handleSelect}
-                        value={quantity}
-                    >
+                    <select id="quantity" onChange={handleSelect} value={total}>
                         <option value="0">0</option>
                         <option value="1">1</option>
                         <option value="2">2</option>
@@ -230,14 +193,6 @@ function Purchase() {
                 </label>
             </div>
 
-            {/* <div
-                className="auth__btn"
-                disabled={userData.isSubmitting ? true : false}
-                onClick={handleSignup}
-            >
-                {userData.isSubmitting ? "Loading..." : "Signup"}
-            </div> */}
-
             {isPending ? (
                 <FontAwesomeIcon className="spinner" icon="spinner" />
             ) : (
@@ -271,23 +226,28 @@ function Purchase() {
                                         approvedDetails
                                     );
 
-                                    handleSignup();
+                                    // handleSignup();
 
                                     setUserData({
                                         ...userData,
                                         successMessage:
                                             "Approved! Logging You In...",
                                     });
+
+                                    history.push(
+                                        `/receipt/${approvedDetails.id}`
+                                    );
+                                })
+                                .catch((error) => {
+                                    console.log("Error: ", error);
                                 });
                         }}
                     />
                 </div>
             )}
-            <div className="redirect__link">
-                <Link className="link" to="/login">
-                    Already have an account? <u>Login</u>
-                </Link>
-            </div>
+
+            <button onClick={createRecord}>Create Record</button>
+
             <div className="copyright">{Copyright()}</div>
         </div>
     );

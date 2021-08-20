@@ -1,5 +1,7 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { useParams } from "react-router-dom";
+import { db } from "../firebase";
+
 import { useBarcode } from "@createnextapp/react-barcode";
 import JsBarcode from "jsbarcode";
 import { createCanvas } from "canvas";
@@ -11,14 +13,34 @@ import "../styles/ticket.scss";
 function Ticket() {
     const params = useParams();
 
-    const orderArr = ["11", "12", "13", "14"];
+    const orderNum = params.orderNum;
+
+    const [tickets, setTickets] = useState([]);
+
+    // const orderArr = ["11", "12", "13", "14"];
+
+    console.log("OrderNum: ", orderNum);
 
     useEffect(() => {
-        // JsBarcode(".barcode").init();
-        for (let i = 0; i < orderArr.length; i++) {
-            JsBarcode(`#a${i}`, "Hi! " + i);
+        db.collection("orders")
+            .doc(orderNum)
+            .collection("tickets")
+            .where("validated", "==", "n")
+            .get()
+            .then((querySnapshot) => {
+                setTickets(querySnapshot.docs.map((doc) => doc));
+            });
+
+        console.log("Tickets: ", tickets);
+    }, [orderNum]);
+
+    useEffect(() => {
+        if (tickets) {
+            for (let i = 0; i < tickets.length; i++) {
+                JsBarcode(`#a${i}`, tickets[i].id);
+            }
         }
-    }, []);
+    }, [tickets]);
 
     return (
         <>
@@ -34,11 +56,13 @@ function Ticket() {
                     </div>
 
                     <div className="ticket__wrapper">
-                        {orderArr.map((ticketNum, index) => {
+                        {tickets.map((ticket, index) => {
                             return (
-                                <div className="ticket-box">
+                                <div key={index} className="ticket-box">
                                     <svg id={"a" + index}></svg>
-                                    <div>Seating Information</div>
+                                    <div>
+                                        Validated: {ticket.data().validated}
+                                    </div>
                                 </div>
                             );
                         })}

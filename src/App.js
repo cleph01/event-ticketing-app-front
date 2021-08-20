@@ -46,6 +46,7 @@ const Login = lazy(() => import("./pages/Login.js"));
 const Scan = lazy(() => import("./pages/Scanner.js"));
 const Purchase = lazy(() => import("./pages/Purchase.js"));
 const Ticket = lazy(() => import("./pages/Ticket.js"));
+const Receipt = lazy(() => import("./pages/Receipt.js"));
 // END Lazy Rendering functions
 
 const initialState = {
@@ -82,6 +83,8 @@ function App() {
                             <Route path={ROUTES.SCAN} component={Scan} />
 
                             <Route path={ROUTES.TICKET} component={Ticket} />
+
+                            <Route path={ROUTES.RECEIPT} component={Receipt} />
 
                             <AdminRoute path={ROUTES.ADMIN} component={Admin} />
                             {/* <ScannerRoute path={ROUTES.SCAN} component={Scan} /> */}

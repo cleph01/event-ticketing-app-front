@@ -5,3 +5,4 @@ export const LOGIN = "/login";
 export const PURCHASE = "/purchase";
 export const SCAN = "/scan";
 export const TICKET = "/ticket/:orderNum";
+export const RECEIPT = "/receipt/:orderNum";
