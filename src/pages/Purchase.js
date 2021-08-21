@@ -41,15 +41,17 @@ function Purchase() {
 
     const [userData, setUserData] = useState(initialState);
 
-    const [quantity, setQuantity] = useState(3);
-    const [total, setTotal] = useState(0);
+    const [quantity, setQuantity] = useState(0);
+    const [totalValue, setTotal] = useState("0.00");
+
+    const [orderNum, setOrderNum] = useState();
 
     const [capturedDetails, setCapture] = useState();
     const [{ isPending }] = usePayPalScriptReducer();
 
     const handleSelect = (e) => {
         setQuantity(e.target.value);
-        setTotal(e.target.value * 50);
+        setTotal((e.target.value * 50.0).toFixed(2));
     };
 
     const handleInputChange = (event) => {
@@ -59,18 +61,73 @@ function Purchase() {
         });
     };
 
-    const createRecord = (event) => {
-        event.preventDefault();
+    const createOrder = (data, actions) => {
+        console.log("Total in CreateOrder: ", totalValue);
 
-        const transactionId = 100;
+        return actions.order
+            .create({
+                purchase_units: [
+                    {
+                        amount: {
+                            value: totalValue,
+                        },
+                    },
+                ],
+            })
+            .then((orderId) => {
+                console.log("Order ID: ", orderId);
+                return orderId;
+            });
+    };
 
-        db.collection("orders")
+    const onApprove = async (data, actions) => {
+        return await actions.order
+            .capture()
+            .then((approvedDetails) => {
+                setCapture(approvedDetails);
+
+                console.log("Transaction Complete: ", approvedDetails);
+
+                console.log("Approved Details: ", approvedDetails);
+
+                // handleSignup();
+
+                setUserData({
+                    ...userData,
+                    successMessage: "Approved! Logging You In...",
+                });
+
+                createRecord(approvedDetails.id, userData);
+
+                // history.push(`/receipt/${orderNum}`);
+
+                history.push(`/ticket/${orderNum}`);
+            })
+            .catch((error) => {
+                console.log("Error: ", error);
+            });
+    };
+
+    const onError = (error) => {
+        console.log("El Error: ", error);
+    };
+
+    const createRecord = async (transactionId, user) => {
+        await db
+            .collection("orders")
             .add({
                 paypalId: transactionId,
+                name: userData.name,
+                email: userData.email,
                 timeStamp: firebase.firestore.FieldValue.serverTimestamp(),
             })
             .then((docRef) => {
-                console.log("Insert Response: ", docRef.id);
+                console.log("Insert Response w/ ID: ", docRef.id);
+
+                setOrderNum(docRef.id);
+
+                console.log("Set Order Num: ", orderNum);
+
                 // loop per quantity bought and creat a batch insert
                 // to account for each ticket
                 const batch = db.batch();
@@ -107,6 +164,14 @@ function Purchase() {
 
     console.log("Quantity Selected: ", quantity);
 
+    console.log("Total Value: ", totalValue, "- Type of: ", typeof totalValue);
+
+    console.log("User Data: ", userData);
+
+    const displayTotal = () => {
+        return totalValue;
+    };
+
     return (
         <div className="form__container">
             <div className="logo__container">
@@ -135,7 +200,11 @@ function Purchase() {
             )}
             <div className="form__group field">
                 <div className="quantity__selector">
-                    <select id="quantity" onChange={handleSelect} value={total}>
+                    <select
+                        id="ticketSelector"
+                        onChange={handleSelect}
+                        value={totalValue}
+                    >
                         <option value="0">0</option>
                         <option value="1">1</option>
                         <option value="2">2</option>
@@ -159,7 +228,7 @@ function Purchase() {
                     <p></p>
                     {quantity && (
                         <p>
-                            Quantity Selected: {quantity} - Total: {total}
+                            Quantity Selected: {quantity} - Total: {totalValue}
                         </p>
                     )}
                 </div>
@@ -199,49 +268,10 @@ function Purchase() {
                 <div className="paypal__btn">
                     <PayPalButtons
                         style={{ layout: "vertical" }}
-                        createOrder={(data, actions) => {
-                            return actions.order.create({
-                                purchase_units: [
-                                    {
-                                        amount: {
-                                            value: total,
-                                        },
-                                    },
-                                ],
-                            });
-                        }}
-                        onApprove={async (data, actions) => {
-                            return await actions.order
-                                .capture()
-                                .then((approvedDetails) => {
-                                    setCapture(approvedDetails);
-
-                                    console.log(
-                                        "Transaction Complete: ",
-                                        approvedDetails
-                                    );
-
-                                    console.log(
-                                        "Approved Details: ",
-                                        approvedDetails
-                                    );
-
-                                    // handleSignup();
-
-                                    setUserData({
-                                        ...userData,
-                                        successMessage:
-                                            "Approved! Logging You In...",
-                                    });
-
-                                    history.push(
-                                        `/receipt/${approvedDetails.id}`
-                                    );
-                                })
-                                .catch((error) => {
-                                    console.log("Error: ", error);
-                                });
-                        }}
+                        createOrder={createOrder}
+                        onApprove={onApprove}
+                        onError={onError}
+                        forceReRender={[totalValue]}
                     />
                 </div>
             )}
